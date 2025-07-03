@@ -10,3 +10,6 @@ ZeroBot-Plugin*
 *.syso
 /.direnv
 /result
+/.vs
+/zbp
+/zerobot.exe

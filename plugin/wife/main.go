@@ -26,7 +26,7 @@ func init() {
 	cards := []string{}
 	engine.OnFullMatch("抽老婆", fcext.DoOnceOnSuccess(
 		func(ctx *zero.Ctx) bool {
-			data, err := engine.GetLazyData("wife.json", true)
+			data, err := engine.GetLazyData("wife.json", false)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return false
@@ -42,7 +42,7 @@ func init() {
 	)).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			card := cards[fcext.RandSenderPerDayN(ctx.Event.UserID, len(cards))]
-			data, err := engine.GetLazyData("wives/"+card, true)
+			data, err := engine.GetLazyData("wives/"+card, false)
 			card, _, _ = strings.Cut(card, ".")
 			if err != nil {
 				ctx.SendChain(

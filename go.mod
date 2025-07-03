@@ -21,8 +21,8 @@ require (
 	github.com/davidscholberg/go-durationfmt v0.0.0-20170122144659-64843a2083d3
 	github.com/disintegration/imaging v1.6.2
 	github.com/fumiama/ahsai v0.1.0
-	github.com/fumiama/cron v1.3.0
 	github.com/fumiama/deepinfra v0.0.0-20250601112706-0175c95164c1
+	github.com/fumiama/cron v1.3.0
 	github.com/fumiama/go-base16384 v1.7.0
 	github.com/fumiama/go-registry v0.2.7
 	github.com/fumiama/gotracemoe v0.0.3

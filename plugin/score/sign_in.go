@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	backgroundURL = "https://pic.re/image"
+	backgroundURL = "https://t.alcy.cc/moe"
 	referer       = "https://weibo.com/"
 	signinMax     = 1
 	// SCOREMAX 分数上限定为1200
@@ -128,7 +128,7 @@ func init() {
 			return
 		}
 		// 更新经验
-		level := sdb.GetScoreByUID(uid).Score + 1
+		level := sdb.GetScoreByUID(uid).Score + 1 + rand.Intn(10)
 		if level > SCOREMAX {
 			level = SCOREMAX
 			ctx.SendChain(message.At(uid), message.Text("你的等级已经达到上限"))
@@ -140,7 +140,7 @@ func init() {
 		}
 		// 更新钱包
 		rank := getrank(level)
-		add := 1 + rand.Intn(10) + rank*5 // 等级越高获得的钱越高
+		add := 10 + rand.Intn(40) + rank*10 // 等级越高获得的钱越高
 		err = wallet.InsertWalletOf(uid, add)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))

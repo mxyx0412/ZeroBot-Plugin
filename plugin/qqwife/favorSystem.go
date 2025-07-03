@@ -32,10 +32,10 @@ type favorability struct {
 
 func init() {
 	// 好感度系统
-	engine.OnMessage(zero.NewPattern(nil).Text(`^查好感度`).At().AsRule(), zero.OnlyGroup, getdb).SetBlock(true).Limit(ctxext.LimitByUser).
+	engine.OnRegex(`^查好感度\s*(\[CQ:at,qq=)?(\d+)`, zero.OnlyGroup, getdb).SetBlock(true).Limit(ctxext.LimitByUser).
 		Handle(func(ctx *zero.Ctx) {
-			patternParsed := ctx.State[zero.KeyPattern].([]zero.PatternParsed)
-			fiancee, _ := strconv.ParseInt(patternParsed[1].At(), 10, 64)
+			fiancee, _ := strconv.ParseInt(ctx.State["regex_matched"].([]string)[2], 10, 64)
+
 			uid := ctx.Event.UserID
 			favor, err := 民政局.查好感度(uid, fiancee)
 			if err != nil {
@@ -49,16 +49,42 @@ func init() {
 			)
 		})
 	// 礼物系统
-	engine.OnMessage(zero.NewPattern(nil).Text(`^买礼物给`).At().AsRule(), zero.OnlyGroup, getdb).SetBlock(true).Limit(ctxext.LimitByUser).
+	engine.OnRegex(`^买礼物给\s?(\[CQ:at,(?:\S*,)?qq=(\d+)(?:,\S*)?\]|(\d+))`, getdb).SetBlock(true).Limit(ctxext.LimitByUser).
 		Handle(func(ctx *zero.Ctx) {
 			gid := ctx.Event.GroupID
 			uid := ctx.Event.UserID
-			patternParsed := ctx.State[zero.KeyPattern].([]zero.PatternParsed)
-			gay, _ := strconv.ParseInt(patternParsed[1].At(), 10, 64)
+			fiancee := ctx.State["regex_matched"].([]string)
+			gay, _ := strconv.ParseInt(fiancee[2]+fiancee[3], 10, 64)
 			if gay == uid {
 				ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.At(uid), message.Text("你想给自己买什么礼物呢?")))
 				return
 			}
+
+			// 定义礼物名称数组
+			type Gift struct {
+				Name        string
+				MeasureWord string
+			}
+			var gifts = []Gift{
+				{"鲜花", "束"},
+				{"巧克力", "盒"},
+				{"女装", "件"},
+				{"香水", "瓶"},
+				{"手链", "条"},
+				{"项链", "条"},
+				{"手表", "块"},
+				{"玩偶", "个"},
+				{"手机壳", "个"},
+				{"游戏机", "台"},
+				{"耳机", "副"},
+				{"围巾", "条"},
+				{"书籍", "本"},
+				{"水杯", "个"},
+			}
+			// 选择随机礼物
+			giftIndex := rand.Intn(len(gifts))
+			selectedGift := gifts[giftIndex]
+
 			// 获取CD
 			groupInfo, err := 民政局.查看设置(gid)
 			if err != nil {
@@ -82,24 +108,45 @@ func init() {
 			}
 			// 对接小熊饼干
 			walletinfo := wallet.GetWalletOf(uid)
-			if walletinfo < 1 {
+			if walletinfo < 5 {
 				ctx.SendChain(message.Text("你钱包没钱啦！"))
 				return
 			}
-			moneyToFavor := rand.Intn(math.Min(walletinfo, 100)) + 1
-			// 计算钱对应的好感值
+
+			// 计算礼物价格的最小值和最大值
+			minValue := 4
+			maxValue := math.Min(walletinfo, 25) // 钱包里的钱和25中取最小值
+
+			// 生成礼物价格随机数
+			moneyToFavor := rand.Intn(int(maxValue-minValue+1)) + minValue
+
 			newFavor := 1
-			moodMax := 2
-			if favor > 50 {
-				newFavor = moneyToFavor % 10 // 礼物厌倦
+			moodMax := 4 // 心情上限
+			// 计算钱对应的好感值
+			if favor > 90 {
+				moodMax = 2
+				newFavor = int(float64(moneyToFavor) * 0.5) //当前好感大于90，1/2概率降低好感，增加好感时会 x0.5倍
+			} else if favor > 66 {
+				moodMax = 3
+				newFavor = int(float64(moneyToFavor) * 0.6) //当前好感大于66，1/3概率降低好感，增加好感时会 x0.6倍
+			} else if favor > 36 {
+				moodMax = 4
+				newFavor = moneyToFavor //当前好感大于36，1/4概率降低好感，正常增加好感（钱和好感度1:1）
 			} else {
 				moodMax = 5
-				newFavor += rand.Intn(moneyToFavor)
+				newFavor = int(float64(moneyToFavor) * 1.33) //初始为1/5概率降低好感，增加好感时会x1.33倍
 			}
+
 			// 随机对方心情
 			mood := rand.Intn(moodMax)
-			if mood == 0 {
-				newFavor = -newFavor
+			if mood == 0 { // 心情为0则减少好感度
+				if favor > 90 {
+					newFavor = -newFavor * 2 //当前好感大于90，双倍扣除好感度
+				} else if favor > 50 {
+					newFavor = -newFavor //当前好感大于50，正常扣除好感度
+				} else {
+					newFavor = -newFavor / 2 //当前好感小于50，扣除的好感度减少一半
+				}
 			}
 			// 记录结果
 			err = wallet.InsertWalletOf(uid, -moneyToFavor)
@@ -119,9 +166,9 @@ func init() {
 			}
 			// 输出结果
 			if mood == 0 {
-				ctx.SendChain(message.Text("你花了", moneyToFavor, wallet.GetWalletName(), "买了一件女装送给了ta,ta很不喜欢,你们的好感度降低至", lastfavor))
+				ctx.SendChain(message.Text("你花了", moneyToFavor, wallet.GetWalletName(), "买了1", selectedGift.MeasureWord, selectedGift.Name, "送给了ta,ta很不喜欢,你们的好感度降低至", lastfavor, " (", newFavor, ")"))
 			} else {
-				ctx.SendChain(message.Text("你花了", moneyToFavor, wallet.GetWalletName(), "买了一件女装送给了ta,ta很喜欢,你们的好感度升至", lastfavor))
+				ctx.SendChain(message.Text("你花了", moneyToFavor, wallet.GetWalletName(), "买了1", selectedGift.MeasureWord, selectedGift.Name, "送给了ta,ta很喜欢,你们的好感度升至", lastfavor, " (+", newFavor, ")"))
 			}
 		})
 	engine.OnFullMatch("好感度列表", zero.OnlyGroup, getdb).SetBlock(true).Limit(ctxext.LimitByUser).
